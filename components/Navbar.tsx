@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import MobileNav from "@/components/MobileNav";
+import { SignedIn, UserButton } from "@clerk/nextjs";
 
 export default function Navbar() {
   return (
@@ -19,6 +20,9 @@ export default function Navbar() {
       </Link>
 
       <div className="flex-between gap-5">
+        <SignedIn>
+          <UserButton />
+        </SignedIn>
         <MobileNav />
       </div>
     </nav>
