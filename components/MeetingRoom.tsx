@@ -26,4 +26,24 @@ export default function MeetingRoom() {
     }
   }
 
+  return (
+    <section className="relative h-screen w-full overflow-hidden pt-4 text-white">
+      <div className="relative flex size-full items-center justify-center">
+        <div className="flex size-full max-w-[1000px] items-center">
+          <CallLayout />
+        </div>
+        <div
+          className={cn("h-[calc(100vh-86px)] hidden ml-2", {
+            "show-block": showParticipants,
+          })}
+        >
+          <CallParticipantsList onClose={() => setShowParticipants(false)} />
+        </div>
+      </div>
+
+      <div className="fixed bottom-0 w-full flex items-center justify-center gap-5">
+        <CallControls />
+      </div>
+    </section>
+  );
 }
