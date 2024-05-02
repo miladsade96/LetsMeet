@@ -1,3 +1,5 @@
+"use client";
+
 import { useState } from "react";
 type CallLayoutType = "grid" | "speaker-left" | "speaker-right";
 export default function MeetingRoom() {
