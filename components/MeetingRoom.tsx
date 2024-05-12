@@ -18,9 +18,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useSearchParams } from "next/navigation";
 type CallLayoutType = "grid" | "speaker-left" | "speaker-right";
 
 export default function MeetingRoom() {
+  const searchParams = useSearchParams();
+  const isPersonalRoom = !!searchParams.get("personal");
+
   const [layout, setLayout] = useState<CallLayoutType>("speaker-left");
   const [showParticipants, setShowParticipants] = useState(false);
 
@@ -76,6 +80,7 @@ export default function MeetingRoom() {
           </DropdownMenuContent>
         </DropdownMenu>
         <CallStatsButton />
+        {!isPersonalRoom && <EndCallButton />}
       </div>
     </section>
   );
