@@ -3,10 +3,12 @@
 import { useState } from "react";
 import {
   CallControls,
+  CallingState,
   CallParticipantsList,
   CallStatsButton,
   PaginatedGridLayout,
   SpeakerLayout,
+  useCallStateHooks,
 } from "@stream-io/video-react-sdk";
 import { cn } from "@/lib/utils";
 
@@ -14,7 +16,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -22,6 +23,7 @@ import { LayoutList, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSearchParams } from "next/navigation";
 import EndCallButton from "@/components/EndCallButton";
+import Loader from "@/components/Loader";
 
 type CallLayoutType = "grid" | "speaker-left" | "speaker-right";
 
@@ -31,6 +33,9 @@ export default function MeetingRoom() {
 
   const [layout, setLayout] = useState<CallLayoutType>("speaker-left");
   const [showParticipants, setShowParticipants] = useState(false);
+
+  const { useCallCallingState } = useCallStateHooks();
+  const callingState = useCallCallingState();
 
   function CallLayout() {
     switch (layout) {
@@ -42,6 +47,8 @@ export default function MeetingRoom() {
         return <SpeakerLayout participantsBarPosition="right" />;
     }
   }
+
+  if (callingState !== CallingState.JOINED) return <Loader />;
 
   return (
     <section className="relative h-screen w-full overflow-hidden pt-4 text-white">
@@ -58,7 +65,7 @@ export default function MeetingRoom() {
         </div>
       </div>
 
-      <div className="fixed bottom-0 w-full flex items-center justify-center gap-5">
+      <div className="fixed bottom-0 w-full flex items-center justify-center gap-5 flex-wrap">
         <CallControls />
 
         <DropdownMenu>
