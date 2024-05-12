@@ -9,6 +9,14 @@ import {
 } from "@stream-io/video-react-sdk";
 import { cn } from "@/lib/utils";
 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 type CallLayoutType = "grid" | "speaker-left" | "speaker-right";
 
 export default function MeetingRoom() {
