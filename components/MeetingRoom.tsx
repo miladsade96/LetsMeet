@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
   CallControls,
   CallParticipantsList,
+  CallStatsButton,
   PaginatedGridLayout,
   SpeakerLayout,
 } from "@stream-io/video-react-sdk";
@@ -74,6 +75,7 @@ export default function MeetingRoom() {
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
+        <CallStatsButton />
       </div>
     </section>
   );
