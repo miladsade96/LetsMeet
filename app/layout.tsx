@@ -1,3 +1,4 @@
+import { missingSettings } from "@/lib/config";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
@@ -15,22 +16,29 @@ export const metadata: Metadata = {
   icons: { icon: "/icons/logo.svg" },
 };
 
+export const dynamic = "force-dynamic";
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  if (missingSettings().length)
+    return (
+      <html lang="en">
+        <body>{children}</body>
+      </html>
+    );
   return (
     <html lang="en">
       <ClerkProvider
         appearance={{
-          layout: { socialButtonsVariant: "iconButton" },
           variables: {
             colorPrimary: "#0e78f9",
-            colorText: "#fff",
+            colorForeground: "#fff",
             colorBackground: "#1c1f2e",
-            colorInputBackground: "#252a41",
-            colorInputText: "#fff",
+            colorInput: "#252a41",
+            colorInputForeground: "#fff",
           },
         }}
       >
