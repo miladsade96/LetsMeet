@@ -1,11 +1,10 @@
 "use client";
-
 import {
   DeviceSettings,
   useCall,
   VideoPreview,
 } from "@stream-io/video-react-sdk";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 
 export default function MeetingSetup({
@@ -13,46 +12,88 @@ export default function MeetingSetup({
 }: {
   setIsSetupComplete: (value: boolean) => void;
 }) {
-  const [isMicCamToggledOn, setIsMicCamToggledOn] = useState(false);
+  const [devicesOff, setDevicesOff] = useState(true);
+  const [joining, setJoining] = useState(false);
+  const joiningRef = useRef(false);
+  const deviceQueue = useRef(Promise.resolve());
+  const [error, setError] = useState("");
   const call = useCall();
-
-  if (!call) {
-    throw new Error("useCall hook must be used within StreamCall context!");
-  }
-
   useEffect(() => {
-    if (isMicCamToggledOn) {
-      call?.camera.disable();
-      call?.microphone.disable();
-    } else {
-      call?.camera.enable();
-      call?.microphone.enable();
+    if (!call) return;
+    let active = true;
+    deviceQueue.current = deviceQueue.current.then(async () => {
+      if (!active) return;
+      try {
+        await Promise.all([
+          devicesOff ? call.camera.disable() : call.camera.enable(),
+          devicesOff ? call.microphone.disable() : call.microphone.enable(),
+        ]);
+      } catch {
+        await Promise.allSettled([
+          call.camera.disable(),
+          call.microphone.disable(),
+        ]);
+        if (active) {
+          setDevicesOff(true);
+          setError(
+            "Camera or microphone access was denied. You can join with both off.",
+          );
+        }
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [call, devicesOff]);
+  if (!call) return <p role="alert">This meeting is unavailable.</p>;
+  async function join() {
+    if (!call || joiningRef.current) return;
+    joiningRef.current = true;
+    setJoining(true);
+    setError("");
+    try {
+      await deviceQueue.current;
+      await call.join();
+      setIsSetupComplete(true);
+    } catch {
+      setError(
+        "Could not join the meeting. Please check your connection and try again.",
+      );
+    } finally {
+      joiningRef.current = false;
+      setJoining(false);
     }
-  }, [isMicCamToggledOn, call?.camera, call?.microphone]);
-
+  }
   return (
-    <div className="h-screen w-full flex flex-col items-center justify-center gap-3 text-white">
-      <h1 className="text-2xl font-bold">Setup</h1>
-      <VideoPreview />
-      <div className="flex h-16 items-center justify-center gap-3">
-        <label className="flex items-center justify-center gap-2 font-medium">
+    <div className="min-h-screen w-full flex flex-col items-center justify-center gap-5 p-6 text-white">
+      <h1 className="text-2xl font-bold">Set up your meeting</h1>
+      <div className="w-full max-w-2xl overflow-hidden rounded-xl">
+        <VideoPreview />
+      </div>
+      <div className="flex flex-wrap items-center justify-center gap-5">
+        <label className="flex items-center gap-2 font-medium">
           <input
             type="checkbox"
-            checked={isMicCamToggledOn}
-            onChange={(e) => setIsMicCamToggledOn(e.target.checked)}
+            checked={devicesOff}
+            disabled={joining}
+            onChange={(event) => setDevicesOff(event.target.checked)}
           />
-          Join with Mic and Camera off
+          Join with microphone and camera off
         </label>
         <DeviceSettings />
       </div>
+      {error && (
+        <p role="alert" className="max-w-xl text-red-300">
+          {error}
+        </p>
+      )}
       <Button
-        className="rounded-md bg-green-500 px-4 py-2.5"
-        onClick={() => {
-          call?.join();
-          setIsSetupComplete(true);
-        }}
+        disabled={joining}
+        aria-busy={joining}
+        className="rounded-md bg-green-700 px-4 py-2.5"
+        onClick={join}
       >
-        Join meeting
+        {joining ? "Joining…" : "Join meeting"}
       </Button>
     </div>
   );

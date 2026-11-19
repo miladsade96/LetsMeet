@@ -17,9 +17,10 @@ export default function HomeCard({
   handleClick,
 }: HomeCardProps) {
   return (
-    <div
+    <button
+      type="button"
       className={cn(
-        "px-4 py-6 flex flex-col justify-between w-full xl:max-w-[270px] min-h-[260px] rounded-[14px] cursor-pointer",
+        "px-4 py-6 flex flex-col justify-between w-full xl:max-w-[270px] min-h-[260px] rounded-[14px] cursor-pointer text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4",
         additionalClasses,
       )}
       onClick={handleClick}
@@ -28,9 +29,9 @@ export default function HomeCard({
         <Image src={img} alt={title} height={27} width={27} />
       </div>
       <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-bold">{title}</h1>
+        <h2 className="text-2xl font-bold">{title}</h2>
         <p className="text-lg font-normal">{description}</p>
       </div>
-    </div>
+    </button>
   );
 }
