@@ -1,5 +1,8 @@
 "use client";
 
+import { useRef, useState } from "react";
+import { meetingLink as buildMeetingLink } from "@/lib/meetings";
+import RequestError from "@/components/RequestError";
 import { useUser } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
@@ -26,44 +29,75 @@ function Table({ title, description }: Props) {
 }
 
 export default function Page() {
+  const [pending, setPending] = useState(false);
+  const pendingRef = useRef(false);
   const { user } = useUser();
   const meetingId = user?.id;
-  const meetingLink = `${process.env.NEXT_PUBLIC_BASE_URL}/meeting/${meetingId}?personal=true`;
-  const { call } = useGetCallById(meetingId!);
+  const meetingLink = meetingId ? buildMeetingLink(meetingId, true) : "";
+  const { call, isCallLoading, error, retry } = useGetCallById(meetingId);
   const client = useStreamVideoClient();
   const router = useRouter();
 
   async function startRoom() {
-    if (!client || !user) return;
-    if (!call) {
-      const newCall = client.call("default", meetingId!);
-      await newCall.getOrCreate({
-        data: { starts_at: new Date().toISOString() },
+    if (!client || !user || pendingRef.current || isCallLoading || error)
+      return;
+    pendingRef.current = true;
+    setPending(true);
+    try {
+      const room = call || client.call("default", user.id);
+      await room.getOrCreate({
+        data: {
+          custom: {
+            description: `${user.fullName || user.username || "My"}'s personal room`,
+          },
+        },
       });
+      router.push(`/meeting/${user.id}?personal=true`);
+    } catch {
+      toast({
+        title: "Could not start your room. Try again.",
+        variant: "destructive",
+      });
+    } finally {
+      pendingRef.current = false;
+      setPending(false);
     }
-    router.push(`/meeting/${meetingId}?personal=true`);
   }
 
   return (
     <section className="flex size-full flex-col gap-10 text-white">
       <h1 className="text-3xl font-bold">Personal Room</h1>
       <div className="flex flex-col w-full gap-8 xl:max-w-[900px]">
-        <Table title="Topic" description={`${user?.username}'s meeting room`} />
-        <Table title="Meeting ID" description={meetingId!} />
+        <Table
+          title="Topic"
+          description={`${user?.fullName || user?.username || "Your"}'s meeting room`}
+        />
+        <Table title="Meeting ID" description={meetingId || "Loading…"} />
         <Table title="Invite Link" description={meetingLink} />
       </div>
-      <div className="flex gap-5">
+      {error && <RequestError message={error} onRetry={retry} />}
+      <div className="flex flex-wrap gap-5">
         <Button
           className="bg-blue-1 ring-1 hover:bg-blue-500 hover:ring-2 transition-all duration-200"
           onClick={startRoom}
+          disabled={pending || isCallLoading || !!error}
         >
           Start Meeting
         </Button>
         <Button
           className="bg-dark-1 ring-1 hover:bg-blue-950 hover:ring-2 transition-all duration-200"
-          onClick={() => {
-            navigator.clipboard.writeText(meetingLink);
-            toast({ title: "Link copied" });
+          disabled={!meetingLink}
+          onClick={async () => {
+            try {
+              await navigator.clipboard.writeText(meetingLink);
+              toast({ title: "Link copied" });
+            } catch {
+              toast({
+                title:
+                  "Could not copy the link. Please allow clipboard access.",
+                variant: "destructive",
+              });
+            }
           }}
         >
           Copy Invitation Link

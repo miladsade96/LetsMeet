@@ -1,121 +1,127 @@
 "use client";
-
 import { useGetCalls } from "@/hooks/useGetCalls";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { CallRecording } from "@stream-io/video-client";
-import { Call } from "@stream-io/video-react-sdk";
+import { Call, CallRecording } from "@stream-io/video-react-sdk";
 import MeetingCard from "@/components/MeetingCard";
 import Loader from "@/components/Loader";
-import { useToast } from "@/components/ui/use-toast";
+import RequestError from "@/components/RequestError";
+import { meetingLink } from "@/lib/meetings";
 
-interface CallListProps {
+export default function CallList({
+  type,
+}: {
   type: "upcoming" | "ended" | "recordings";
-}
-
-export default function CallList({ type }: CallListProps) {
-  const { endedCalls, upcomingCalls, callRecordings, isLoading } =
+}) {
+  const { endedCalls, upcomingCalls, callRecordings, isLoading, error, retry } =
     useGetCalls();
   const router = useRouter();
-  const [recordings, setRecordings] = useState<CallRecording[]>([]);
-  const { toast } = useToast();
-
-  function getCalls() {
-    switch (type) {
-      case "ended":
-        return endedCalls;
-      case "recordings":
-        return recordings;
-      case "upcoming":
-        return upcomingCalls;
-      default:
-        return [];
-    }
-  }
-
-  function getNoCallsMessage() {
-    switch (type) {
-      case "ended":
-        return "No previous calls";
-      case "recordings":
-        return "No recordings";
-      case "upcoming":
-        return "No upcoming calls";
-      default:
-        return "";
-    }
-  }
-
+  const [attempt, setAttempt] = useState(0);
+  const [result, setResult] = useState<{
+    source?: Call[];
+    attempt?: number;
+    recordings: CallRecording[];
+    loading: boolean;
+    error?: string;
+  }>({ recordings: [], loading: true });
   useEffect(() => {
-    async function fetchRecordings() {
-      try {
-        const callData = await Promise.all(
-          callRecordings.map((meeting) => meeting.queryRecordings()),
-        );
-        const recordings = callData
-          .filter((call) => call.recordings.length > 0)
-          .flatMap((call) => call.recordings);
-
-        setRecordings(recordings);
-      } catch (error) {
-        toast({ title: "Try again later" });
-      }
-    }
-    if (type === "recordings") fetchRecordings();
-  }, [type, callRecordings]);
-
-  const calls = getCalls();
-  const noCallsMessage = getNoCallsMessage();
-
-  if (isLoading) return <Loader />;
-
+    if (type !== "recordings" || isLoading || error) return;
+    let active = true;
+    Promise.allSettled(
+      callRecordings.map((call) => call.queryRecordings()),
+    ).then((responses) => {
+      if (!active) return;
+      const recordings = responses.flatMap((response) =>
+        response.status === "fulfilled" ? response.value.recordings : [],
+      );
+      const unique = Array.from(
+        new Map(
+          recordings.map((recording) => [recording.url, recording]),
+        ).values(),
+      );
+      unique.sort(
+        (a, b) => Date.parse(b.start_time) - Date.parse(a.start_time),
+      );
+      setResult({
+        source: callRecordings,
+        attempt,
+        recordings: unique,
+        loading: false,
+        error: responses.some((response) => response.status === "rejected")
+          ? "Some recordings could not be loaded. You can try again."
+          : undefined,
+      });
+    });
+    return () => {
+      active = false;
+    };
+  }, [type, callRecordings, isLoading, error, attempt]);
+  if (error) return <RequestError message={error} onRetry={retry} />;
+  if (
+    isLoading ||
+    (type === "recordings" &&
+      (result.loading ||
+        result.source !== callRecordings ||
+        result.attempt !== attempt))
+  )
+    return <Loader />;
+  const calls = type === "upcoming" ? upcomingCalls : endedCalls;
   return (
-    <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-      {calls && calls.length > 0 ? (
-        calls.map((meeting: Call | CallRecording) => {
-          return (
+    <>
+      {type === "recordings" && result.error && (
+        <RequestError
+          message={result.error}
+          onRetry={() => setAttempt((value) => value + 1)}
+        />
+      )}
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+        {type === "recordings" ? (
+          result.recordings.length ? (
+            result.recordings.map((recording) => (
+              <MeetingCard
+                key={recording.url}
+                icon="/icons/recordings.svg"
+                title={recording.filename || "Meeting recording"}
+                date={new Date(recording.start_time).toLocaleString()}
+                buttonIcon1="/icons/play.svg"
+                buttonText="Play"
+                link={recording.url}
+                handleClick={() => {
+                  if (/^https:\/\//i.test(recording.url))
+                    window.open(recording.url, "_blank", "noopener,noreferrer");
+                }}
+              />
+            ))
+          ) : (
+            <p>No recordings</p>
+          )
+        ) : calls.length ? (
+          calls.map((call) => (
             <MeetingCard
-              key={(meeting as Call).id}
+              key={call.cid}
               icon={
-                type === "ended"
-                  ? "/icons/previous.svg"
-                  : type === "upcoming"
-                    ? "/icons/upcoming.svg"
-                    : "/icons/recordings.svg"
+                type === "ended" ? "/icons/previous.svg" : "/icons/upcoming.svg"
               }
               title={
-                (meeting as Call).state?.custom?.description?.substring(
-                  0,
-                  26,
-                ) ||
-                (meeting as CallRecording).filename?.substring(0, 20) ||
-                "Personal Meeting"
+                typeof call.state.custom.description === "string"
+                  ? call.state.custom.description
+                  : "Personal meeting"
               }
               date={
-                (meeting as Call).state?.startsAt?.toLocaleString() ||
-                (meeting as CallRecording).start_time.toLocaleString()
+                call.state.startsAt?.toLocaleString() || "No scheduled time"
               }
               isPreviousMeeting={type === "ended"}
-              buttonIcon1={
-                type === "recordings" ? "/icons/play.svg" : undefined
-              }
-              buttonText={type === "recordings" ? "Play" : "Start"}
-              link={
-                type === "recordings"
-                  ? (meeting as CallRecording).url
-                  : `${process.env.NEXT_PUBLIC_BASE_URL}/meeting/${(meeting as Call).id}`
-              }
-              handleClick={
-                type === "recordings"
-                  ? () => router.push((meeting as CallRecording).url)
-                  : () => router.push(`/meeting/${(meeting as Call).id}`)
-              }
+              buttonText="Start"
+              link={meetingLink(call.id)}
+              handleClick={() => router.push(`/meeting/${call.id}`)}
             />
-          );
-        })
-      ) : (
-        <h1>{noCallsMessage}</h1>
-      )}
-    </div>
+          ))
+        ) : (
+          <p>
+            {type === "upcoming" ? "No upcoming calls" : "No previous calls"}
+          </p>
+        )}
+      </div>
+    </>
   );
 }
